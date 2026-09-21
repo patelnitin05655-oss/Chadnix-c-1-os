@@ -317,7 +317,7 @@ public class MainActivity extends Activity {
     String runShell(String cmd) {
         if (cmd.isEmpty()) return "";
         if (cmd.equals("help")) {
-            return "Commands:\n  ls       - list files\n  pwd      - current dir\n  date     - date\n  whoami   - user\n  uname    - kernel\n  ps       - processes\n  echo X   - print X\n  df       - disk\n  cat X    - print file\n  clear    - clear screen";
+            return "Commands:\n  ls       - list files\n  pwd      - current dir\n  date     - date\n  whoami   - user\n  uname    - kernel\n  ps       - processes\n  echo X   - print X\n  df       - disk usage\n  top      - tasks\n  reboot   - reboot (simulated)\n";
         }
         try {
             Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c", cmd});
@@ -541,6 +541,7 @@ public class MainActivity extends Activity {
                             prev[0] = 0; op[0] = 0; hasPrev[0] = false; newNum[0] = true;
                             return;
                         }
+
                         if (k.equals("=")) {
                             if (!hasPrev[0]) return;
                             double cur = Double.parseDouble(display.getText().toString());
@@ -548,5 +549,118 @@ public class MainActivity extends Activity {
                             if (op[0] == '+') r = prev[0] + cur;
                             else if (op[0] == '-') r = prev[0] - cur;
                             else if (op[0] == '*') r = prev[0] * cur;
+                            else if (op[0] == '/') {
+                                if (cur == 0) {
+                                    display.setText("Error");
+                                    hasPrev[0] = false;
+                                    newNum[0] = true;
+                                    return;
+                                }
+                                r = prev[0] / cur;
+                            }
+                            String s = String.valueOf(Math.round(r * 1000000.0) / 1000000.0);
+                            if (s.endsWith(".0")) s = s.replace(".0", "");
+                            display.setText(s);
+                            hasPrev[0] = false;
+                            newNum[0] = true;
+                            return;
+                        }
+
+                        if ("+-*/".contains(k)) {
+                            if (!hasPrev[0]) {
+                                prev[0] = Double.parseDouble(display.getText().toString());
+                                op[0] = k.charAt(0);
+                                hasPrev[0] = true;
+                                newNum[0] = true;
+                                return;
+                            }
+
+                            double cur = Double.parseDouble(display.getText().toString());
+                            double r = 0;
+                            if (op[0] == '+') r = prev[0] + cur;
+                            else if (op[0] == '-') r = prev[0] - cur;
+                            else if (op[0] == '*') r = prev[0] * cur;
                             else if (op[0] == '/') r = (cur == 0) ? 0 : prev[0] / cur;
-                            String s = String.valueOf(Math.round(r * 1000000.0) / 10
+
+                            String s = String.valueOf(Math.round(r * 1000000.0) / 1000000.0);
+                            if (s.endsWith(".0")) s = s.replace(".0", "");
+                            display.setText(s);
+                            prev[0] = r;
+                            op[0] = k.charAt(0);
+                            hasPrev[0] = true;
+                            newNum[0] = true;
+                            return;
+                        }
+
+                        if (newNum[0] || display.getText().toString().equals("0")) {
+                            display.setText(k);
+                            newNum[0] = false;
+                        } else {
+                            display.append(k);
+                        }
+                    }
+                });
+
+                row.addView(b, new LinearLayout.LayoutParams(0, MATCH, 1));
+            }
+
+            v.addView(row);
+        }
+
+        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+    }
+
+    // ═══════════ SETTINGS ═══════════
+
+    void showSettings() {
+        content.removeAllViews();
+
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setBackgroundColor(WIN_BG);
+
+        v.addView(makeHeader("Settings"));
+
+        TextView info = new TextView(this);
+        info.setText("PC Mode\n\nDark theme enabled\nFiles access: /sdcard\nNotes are saved locally\n");
+        info.setTextColor(WHITE);
+        info.setTextSize(13);
+        info.setPadding(dp(16), dp(16), dp(16), dp(16));
+        v.addView(info, new LinearLayout.LayoutParams(MATCH, WRAP));
+
+        Button resetNotes = new Button(this);
+        resetNotes.setText("RESET NOTES");
+        resetNotes.setBackgroundColor(RED);
+        resetNotes.setTextColor(WHITE);
+        resetNotes.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View x) {
+                prefs.edit().remove("notes").apply();
+                toast("Notes reset");
+            }
+        });
+        v.addView(resetNotes, new LinearLayout.LayoutParams(MATCH, WRAP));
+
+        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+    }
+
+    // ═══════════ ABOUT ═══════════
+
+    void showAbout() {
+        content.removeAllViews();
+
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setBackgroundColor(WIN_BG);
+
+        v.addView(makeHeader("About"));
+
+        TextView info = new TextView(this);
+        info.setText("PC Mode\nVersion 1.0\n\nA lightweight desktop-like launcher for Android.\n\nCreated with Java + Android UI components.");
+        info.setTextColor(WHITE);
+        info.setTextSize(14);
+        info.setPadding(dp(16), dp(16), dp(16), dp(16));
+        v.addView(info, new LinearLayout.LayoutParams(MATCH, WRAP));
+
+        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+    }
+}
