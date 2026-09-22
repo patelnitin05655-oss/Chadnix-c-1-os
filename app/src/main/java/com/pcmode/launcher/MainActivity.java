@@ -10,11 +10,15 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -28,102 +32,198 @@ import android.widget.Toast;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
-
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
 
-    static final int BG_MAIN = 0xFF1E1E1E;
-    static final int BG_MENU = 0xFF2D2D2D;
-    static final int BG_INPUT = 0xFF252526;
-    static final int TEXT_MAIN = 0xFFFFFFFF;
-    static final int TEXT_MUTED = 0xFFAAAAAA;
-    static final int ACCENT = 0xFF0078D4;
-    static final int BORDER = 0xFF3C3C3C;
-    static final int RED = 0xFFE53935;
-    static final int GREEN = 0xFF4CAF50;
+    static final int DESKTOP = Color.rgb(15, 48, 82);
+    static final int TASKBAR = Color.rgb(24, 24, 27);
+    static final int PANEL = Color.rgb(38, 38, 42);
+    static final int PANEL_2 = Color.rgb(48, 48, 53);
+    static final int TITLE = Color.rgb(35, 35, 39);
+    static final int TITLE_ACTIVE = Color.rgb(55, 55, 61);
+    static final int TEXT = Color.WHITE;
+    static final int MUTED = Color.rgb(190, 190, 195);
+    static final int ACCENT = Color.rgb(0, 120, 212);
+    static final int CLOSE = Color.rgb(196, 43, 28);
 
-    FrameLayout root, content;
-    LinearLayout taskbar, startMenu;
-    TextView clockView;
-    boolean startOpen = false;
+    FrameLayout root;
+    FrameLayout desktop;
+    LinearLayout taskbar;
+    LinearLayout taskbarApps;
+    LinearLayout startMenu;
+    EditText startSearch;
+    TextView clock;
+    TextView date;
     SharedPreferences prefs;
     Handler handler = new Handler(Looper.getMainLooper());
 
+    boolean startOpen = false;
+    final List<View> windows = new ArrayList<>();
+    final List<String> windowNames = new ArrayList<>();
+
     @Override
-    protected void onCreate(Bundle b) {
-        super.onCreate(b);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                             WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        prefs = getSharedPreferences("pcmode", MODE_PRIVATE);
-        buildRoot();
-        showDesktop();
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        requestFullscreen();
+        prefs = getSharedPreferences("winpcmode", MODE_PRIVATE);
+        buildDesktop();
+        addDesktopIcons();
         startClock();
     }
 
-    int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density); }
-    void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+    void requestFullscreen() {
+        Window w = getWindow();
+        w.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    }
 
-    void buildRoot() {
+    int dp(int n) {
+        return (int) (n * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    TextView label(String text, float size, int color) {
+        TextView v = new TextView(this);
+        v.setText(text);
+        v.setTextSize(size);
+        v.setTextColor(color);
+        v.setGravity(Gravity.CENTER_VERTICAL);
+        return v;
+    }
+
+    Button flatButton(String text) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setTextColor(TEXT);
+        b.setTextSize(12);
+        b.setAllCaps(false);
+        b.setBackgroundColor(Color.TRANSPARENT);
+        return b;
+    }
+
+    void buildDesktop() {
         root = new FrameLayout(this);
-        root.setBackgroundColor(0xFF0E4C8A);
+        root.setBackgroundColor(DESKTOP);
 
-        content = new FrameLayout(this);
-        root.addView(content, new FrameLayout.LayoutParams(MATCH, MATCH));
+        desktop = new FrameLayout(this);
+        desktop.setBackgroundColor(DESKTOP);
+        root.addView(desktop, new FrameLayout.LayoutParams(MATCH, MATCH));
+
+        View glow1 = new View(this);
+        glow1.setBackgroundColor(Color.rgb(21, 69, 112));
+        FrameLayout.LayoutParams gp = new FrameLayout.LayoutParams(dp(420), dp(420));
+        gp.leftMargin = dp(-160);
+        gp.topMargin = dp(80);
+        desktop.addView(glow1, gp);
 
         taskbar = new LinearLayout(this);
         taskbar.setOrientation(LinearLayout.HORIZONTAL);
-        taskbar.setBackgroundColor(0xFF000000);
-        taskbar.setPadding(dp(6), dp(4), dp(6), dp(4));
         taskbar.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(MATCH, dp(48));
+        taskbar.setPadding(dp(6), dp(4), dp(6), dp(4));
+        taskbar.setBackgroundColor(TASKBAR);
+
+        FrameLayout.LayoutParams tp = new FrameLayout.LayoutParams(MATCH, dp(54));
         tp.gravity = Gravity.BOTTOM;
         root.addView(taskbar, tp);
 
-        Button start = new Button(this);
-        start.setText("⊞  START");
-        start.setTextColor(TEXT_MAIN);
-        start.setTextSize(13);
-        start.setBackgroundColor(ACCENT);
-        start.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { toggleStart(); }
+        Button start = flatButton("⊞");
+        start.setTextSize(25);
+        start.setOnClickListener(v -> toggleStart());
+        taskbar.addView(start, new LinearLayout.LayoutParams(dp(48), dp(46)));
+
+        Button search = flatButton("🔎");
+        search.setTextSize(17);
+        search.setOnClickListener(v -> {
+            showStart();
+            if (startSearch != null) {
+                startSearch.requestFocus();
+            }
         });
-        taskbar.addView(start, new LinearLayout.LayoutParams(dp(115), dp(40)));
+        taskbar.addView(search, new LinearLayout.LayoutParams(dp(46), dp(46)));
 
-        View sp = new View(this);
-        taskbar.addView(sp, new LinearLayout.LayoutParams(0, dp(1), 1));
+        taskbarApps = new LinearLayout(this);
+        taskbarApps.setOrientation(LinearLayout.HORIZONTAL);
+        taskbarApps.setGravity(Gravity.CENTER_VERTICAL);
 
-        clockView = new TextView(this);
-        clockView.setTextColor(TEXT_MAIN);
-        clockView.setTextSize(12);
-        clockView.setGravity(Gravity.CENTER);
-        clockView.setPadding(dp(8), 0, dp(8), 0);
-        taskbar.addView(clockView, new LinearLayout.LayoutParams(WRAP, dp(40)));
+        ScrollView taskScroll = new ScrollView(this);
+        taskScroll.setHorizontalScrollBarEnabled(false);
+        taskScroll.setFillViewport(false);
+        taskScroll.addView(taskbarApps);
+        taskbar.addView(taskScroll, new LinearLayout.LayoutParams(0, dp(46), 1));
 
-        Button exit = new Button(this);
-        exit.setText("EXIT");
-        exit.setTextColor(TEXT_MAIN);
-        exit.setTextSize(11);
-        exit.setBackgroundColor(RED);
-        exit.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { finish(); }
-        });
-        taskbar.addView(exit, new LinearLayout.LayoutParams(dp(75), dp(40)));
+        LinearLayout tray = new LinearLayout(this);
+        tray.setOrientation(LinearLayout.VERTICAL);
+        tray.setGravity(Gravity.CENTER);
+        clock = label("--:--", 11, TEXT);
+        clock.setGravity(Gravity.CENTER);
+        date = label("--/--/----", 9, MUTED);
+        date.setGravity(Gravity.CENTER);
+        tray.addView(clock, new LinearLayout.LayoutParams(WRAP, dp(19)));
+        tray.addView(date, new LinearLayout.LayoutParams(WRAP, dp(17)));
+        taskbar.addView(tray, new LinearLayout.LayoutParams(dp(86), dp(46)));
 
         setContentView(root);
     }
 
     void startClock() {
         handler.post(new Runnable() {
-            public void run() {
-                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm  dd/MM", Locale.getDefault());
-                clockView.setText(sdf.format(new Date()));
+            @Override public void run() {
+                Date now = new Date();
+                clock.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(now));
+                date.setText(new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(now));
                 handler.postDelayed(this, 1000);
             }
         });
+    }
+
+    void addDesktopIcons() {
+        String[][] apps = {
+                {"This PC", "🖥"},
+                {"Files", "📁"},
+                {"Browser", "🌐"},
+                {"Notepad", "📝"},
+                {"Terminal", ">_"},
+                {"Calculator", "🔢"},
+                {"Settings", "⚙"},
+                {"About", "ⓘ"}
+        };
+
+        int col = 0, row = 0;
+        for (String[] a : apps) {
+            final String name = a[0];
+
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setGravity(Gravity.CENTER);
+            item.setPadding(dp(5), dp(5), dp(5), dp(5));
+
+            TextView icon = label(a[1], 34, TEXT);
+            icon.setGravity(Gravity.CENTER);
+            item.addView(icon, new LinearLayout.LayoutParams(MATCH, dp(50)));
+
+            TextView nameView = label(name, 10, TEXT);
+            nameView.setGravity(Gravity.CENTER);
+            item.addView(nameView, new LinearLayout.LayoutParams(MATCH, dp(28)));
+
+            item.setOnClickListener(v -> openApp(name));
+
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(92), dp(84));
+            lp.leftMargin = dp(10 + col * 98);
+            lp.topMargin = dp(12 + row * 92);
+            desktop.addView(item, lp);
+
+            col++;
+            if (col >= 5) {
+                col = 0;
+                row++;
+            }
+        }
     }
 
     void toggleStart() {
@@ -145,552 +245,568 @@ public class MainActivity extends Activity {
     void buildStartMenu() {
         startMenu = new LinearLayout(this);
         startMenu.setOrientation(LinearLayout.VERTICAL);
-        startMenu.setBackgroundColor(0xF01F1F1F);
-        startMenu.setPadding(dp(10), dp(10), dp(10), dp(10));
+        startMenu.setPadding(dp(16), dp(16), dp(16), dp(14));
+        startMenu.setBackgroundColor(Color.rgb(31, 31, 35));
 
-        TextView title = new TextView(this);
-        title.setText("PC Mode");
-        title.setTextColor(TEXT_MAIN);
-        title.setTextSize(14);
-        title.setPadding(dp(8), dp(4), dp(8), dp(10));
-        startMenu.addView(title);
+        TextView title = label("Start", 20, TEXT);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        startMenu.addView(title, new LinearLayout.LayoutParams(MATCH, dp(36)));
 
-        String[][] items = {
-            {"Terminal", ">_"},
-            {"Browser", "🌐"},
-            {"Files", "📁"},
-            {"Notepad", "📝"},
-            {"Calculator", "🔢"},
-            {"Settings", "⚙"},
-            {"About", "ℹ"}
+        startSearch = new EditText(this);
+        startSearch.setHint("Search apps");
+        startSearch.setHintTextColor(MUTED);
+        startSearch.setTextColor(TEXT);
+        startSearch.setSingleLine(true);
+        startSearch.setTextSize(12);
+        startSearch.setPadding(dp(12), 0, dp(12), 0);
+        startSearch.setBackgroundColor(PANEL_2);
+        startMenu.addView(startSearch, new LinearLayout.LayoutParams(MATCH, dp(42)));
+
+        TextView recommended = label("Pinned", 13, TEXT);
+        recommended.setTypeface(Typeface.DEFAULT_BOLD);
+        recommended.setPadding(0, dp(14), 0, dp(6));
+        startMenu.addView(recommended);
+
+        String[][] apps = {
+                {"This PC", "🖥"}, {"Files", "📁"}, {"Browser", "🌐"},
+                {"Notepad", "📝"}, {"Terminal", ">_"}, {"Calculator", "🔢"},
+                {"Settings", "⚙"}, {"About", "ⓘ"}
         };
 
-        for (String[] item : items) {
-            final String name = item[0];
-            Button b = new Button(this);
-            b.setText(item[1] + "   " + name);
-            b.setTextColor(TEXT_MAIN);
-            b.setTextSize(12);
-            b.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-            b.setBackgroundColor(0xFF2A2A2A);
-            b.setPadding(dp(14), dp(8), dp(14), dp(8));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(220), dp(42));
-            lp.setMargins(0, dp(2), 0, dp(2));
-            b.setLayoutParams(lp);
-            b.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+
+        for (int i = 0; i < apps.length; i += 2) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+
+            for (int j = i; j < Math.min(i + 2, apps.length); j++) {
+                final String name = apps[j][0];
+                Button b = flatButton(apps[j][1] + "  " + name);
+                b.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                b.setBackgroundColor(PANEL_2);
+                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(44), 1);
+                bp.setMargins(dp(3), dp(3), dp(3), dp(3));
+                row.addView(b, bp);
+                b.setOnClickListener(v -> {
                     hideStart();
                     openApp(name);
-                }
-            });
-            startMenu.addView(b);
+                });
+            }
+            grid.addView(row, new LinearLayout.LayoutParams(MATCH, dp(50)));
         }
 
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(240), WRAP);
-        lp.gravity = Gravity.BOTTOM | Gravity.LEFT;
-        lp.bottomMargin = dp(52);
-        lp.leftMargin = dp(6);
-        root.addView(startMenu, lp);
-    }
+        startMenu.addView(grid, new LinearLayout.LayoutParams(MATCH, dp(208)));
 
-    void showDesktop() {
-        content.removeAllViews();
+        LinearLayout footer = new LinearLayout(this);
+        footer.setGravity(Gravity.CENTER_VERTICAL);
+        TextView user = label("PC Mode", 11, MUTED);
+        footer.addView(user, new LinearLayout.LayoutParams(0, dp(40), 1));
 
-        LinearLayout desk = new LinearLayout(this);
-        desk.setOrientation(LinearLayout.VERTICAL);
-        desk.setBackgroundColor(0xFF0E4C8A);
-        desk.setPadding(dp(20), dp(20), dp(20), dp(20));
+        Button power = flatButton("⏻");
+        power.setTextSize(18);
+        power.setOnClickListener(v -> finish());
+        footer.addView(power, new LinearLayout.LayoutParams(dp(48), dp(40)));
+        startMenu.addView(footer);
 
-        TextView logo = new TextView(this);
-        logo.setText("PC MODE");
-        logo.setTextColor(TEXT_MAIN);
-        logo.setTextSize(28);
-        logo.setGravity(Gravity.CENTER);
-        logo.setPadding(0, dp(30), 0, dp(20));
-        desk.addView(logo);
-
-        TextView sub = new TextView(this);
-        sub.setText("Tap ⊞ START to open apps");
-        sub.setTextColor(0xCCFFFFFF);
-        sub.setTextSize(13);
-        sub.setGravity(Gravity.CENTER);
-        desk.addView(sub);
-
-        content.addView(desk, new FrameLayout.LayoutParams(MATCH, MATCH));
-    }
-
-    View makeHeader(String title) {
-        LinearLayout head = new LinearLayout(this);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setBackgroundColor(BG_MENU);
-        head.setPadding(dp(10), dp(6), dp(10), dp(6));
-        head.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView t = new TextView(this);
-        t.setText(title);
-        t.setTextColor(TEXT_MAIN);
-        t.setTextSize(14);
-        t.setTypeface(null, Typeface.BOLD);
-        head.addView(t, new LinearLayout.LayoutParams(0, WRAP, 1));
-
-        Button close = new Button(this);
-        close.setText("✕");
-        close.setTextColor(TEXT_MAIN);
-        close.setTextSize(12);
-        close.setBackgroundColor(RED);
-        close.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { showDesktop(); }
+        startSearch.setOnEditorActionListener((v, action, event) -> {
+            String q = startSearch.getText().toString().trim().toLowerCase(Locale.getDefault());
+            if (!q.isEmpty()) {
+                for (String[] a : apps) {
+                    if (a[0].toLowerCase(Locale.getDefault()).contains(q)) {
+                        hideStart();
+                        openApp(a[0]);
+                        return true;
+                    }
+                }
+            }
+            return false;
         });
-        head.addView(close, new LinearLayout.LayoutParams(dp(48), dp(32)));
 
-        return head;
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(430), dp(500));
+        lp.gravity = Gravity.BOTTOM | Gravity.LEFT;
+        lp.leftMargin = dp(8);
+        lp.bottomMargin = dp(60);
+        root.addView(startMenu, lp);
+        startMenu.setVisibility(View.GONE);
     }
 
     void openApp(String name) {
-        if (name.equals("Terminal")) showTerminal();
-        else if (name.equals("Browser")) showBrowser();
-        else if (name.equals("Files")) showFiles();
-        else if (name.equals("Notepad")) showNotepad();
-        else if (name.equals("Calculator")) showCalculator();
-        else if (name.equals("Settings")) showSettings();
-        else if (name.equals("About")) showAbout();
+        if ("This PC".equals(name)) {
+            createWindow(name, buildThisPC(), dp(600), dp(420));
+        } else if ("Terminal".equals(name)) {
+            createWindow(name, buildTerminal(), dp(600), dp(430));
+        } else if ("Browser".equals(name)) {
+            createWindow(name, buildBrowser(), dp(700), dp(500));
+        } else if ("Files".equals(name)) {
+            createWindow(name, buildFiles(), dp(560), dp(430));
+        } else if ("Notepad".equals(name)) {
+            createWindow(name, buildNotepad(), dp(560), dp(430));
+        } else if ("Calculator".equals(name)) {
+            createWindow(name, buildCalculator(), dp(360), dp(470));
+        } else if ("Settings".equals(name)) {
+            createWindow(name, buildSettings(), dp(520), dp(430));
+        } else if ("About".equals(name)) {
+            createWindow(name, buildAbout(), dp(420), dp(340));
+        }
     }
 
-    // ═══════════ TERMINAL ═══════════
-    void showTerminal() {
-        content.removeAllViews();
+    void createWindow(final String title, View content, int width, int height) {
+        final LinearLayout win = new LinearLayout(this);
+        win.setOrientation(LinearLayout.VERTICAL);
+        win.setBackgroundColor(PANEL);
+        win.setElevation(dp(8));
 
-        LinearLayout v = new LinearLayout(this);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setBackgroundColor(0xFF000000);
+        final LinearLayout titleBar = new LinearLayout(this);
+        titleBar.setGravity(Gravity.CENTER_VERTICAL);
+        titleBar.setPadding(dp(10), 0, dp(5), 0);
+        titleBar.setBackgroundColor(TITLE_ACTIVE);
 
-        v.addView(makeHeader("Terminal"));
+        TextView icon = label("▣", 13, TEXT);
+        titleBar.addView(icon, new LinearLayout.LayoutParams(dp(28), dp(38)));
 
-        final TextView out = new TextView(this);
-        out.setTextColor(0xFF00FF00);
-        out.setTextSize(11);
-        out.setTypeface(Typeface.MONOSPACE);
-        out.setText("Android Shell [v1.0]\nType 'help' for commands\n\n");
+        TextView titleView = label(title, 12, TEXT);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleBar.addView(titleView, new LinearLayout.LayoutParams(0, dp(38), 1));
 
-        ScrollView sv = new ScrollView(this);
-        sv.addView(out);
-        v.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1));
+        Button min = flatButton("—");
+        Button max = flatButton("□");
+        Button close = flatButton("×");
+        close.setTextSize(19);
 
-        final EditText input = new EditText(this);
-        input.setTextColor(0xFF00FF00);
-        input.setHint("type command...");
-        input.setHintTextColor(0xFF008800);
-        input.setBackgroundColor(0xFF001100);
-        input.setTypeface(Typeface.MONOSPACE);
-        input.setTextSize(12);
-        input.setSingleLine(true);
-        input.setPadding(dp(10), dp(8), dp(10), dp(8));
-        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        v.addView(input, new LinearLayout.LayoutParams(MATCH, dp(50)));
+        titleBar.addView(min, new LinearLayout.LayoutParams(dp(42), dp(38)));
+        titleBar.addView(max, new LinearLayout.LayoutParams(dp(42), dp(38)));
+        titleBar.addView(close, new LinearLayout.LayoutParams(dp(42), dp(38)));
 
-        input.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-            public boolean onEditorAction(TextView tv, int action, android.view.KeyEvent e) {
-                String cmd = input.getText().toString().trim();
-                input.setText("");
-                out.append("$ " + cmd + "\n");
-                String result = runShell(cmd);
-                if (result == null || result.isEmpty()) out.append("(no output)\n\n");
-                else out.append(result + "\n");
-                return true;
+        win.addView(titleBar, new LinearLayout.LayoutParams(MATCH, dp(38)));
+        win.addView(content, new LinearLayout.LayoutParams(MATCH, 0, 1));
+
+        final FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
+        int n = windows.size();
+        lp.leftMargin = dp(35 + (n % 4) * 24);
+        lp.topMargin = dp(25 + (n % 4) * 20);
+        desktop.addView(win, lp);
+        windows.add(win);
+        windowNames.add(title);
+
+        final int[] old = {width, height};
+        final boolean[] maximized = {false};
+
+        min.setOnClickListener(v -> win.setVisibility(View.GONE));
+
+        max.setOnClickListener(v -> {
+            if (!maximized[0]) {
+                old[0] = win.getWidth();
+                old[1] = win.getHeight();
+                lp.leftMargin = 0;
+                lp.topMargin = 0;
+                lp.width = MATCH;
+                lp.height = MATCH;
+                win.setLayoutParams(lp);
+                max.setText("❐");
+                maximized[0] = true;
+            } else {
+                lp.width = old[0];
+                lp.height = old[1];
+                lp.leftMargin = dp(35);
+                lp.topMargin = dp(25);
+                win.setLayoutParams(lp);
+                max.setText("□");
+                maximized[0] = false;
+            }
+            win.bringToFront();
+        });
+
+        close.setOnClickListener(v -> {
+            desktop.removeView(win);
+            int idx = windows.indexOf(win);
+            if (idx >= 0) {
+                windows.remove(idx);
+                windowNames.remove(idx);
+            }
+            removeTaskbarButton(win);
+        });
+
+        titleBar.setOnTouchListener(new View.OnTouchListener() {
+            float downX, downY;
+            @Override public boolean onTouch(View v, MotionEvent e) {
+                if (maximized[0]) return true;
+                switch (e.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        downX = e.getRawX() - lp.leftMargin;
+                        downY = e.getRawY() - lp.topMargin;
+                        win.bringToFront();
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        int x = (int)(e.getRawX() - downX);
+                        int y = (int)(e.getRawY() - downY);
+                        x = Math.max(0, x);
+                        y = Math.max(0, y);
+                        int maxX = desktop.getWidth() - win.getWidth();
+                        int maxY = desktop.getHeight() - dp(54) - win.getHeight();
+                        if (maxX > 0) x = Math.min(x, maxX);
+                        if (maxY > 0) y = Math.min(y, maxY);
+                        lp.leftMargin = x;
+                        lp.topMargin = y;
+                        win.setLayoutParams(lp);
+                        return true;
+                }
+                return false;
             }
         });
 
-        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+        addTaskbarButton(title, win);
+        win.bringToFront();
+    }
+
+    void addTaskbarButton(String title, View win) {
+        Button b = flatButton(title);
+        b.setBackgroundColor(PANEL_2);
+        b.setTextSize(10);
+        b.setTag(win);
+        b.setOnClickListener(v -> {
+            win.setVisibility(View.VISIBLE);
+            win.bringToFront();
+        });
+        taskbarApps.addView(b, new LinearLayout.LayoutParams(dp(125), dp(40)));
+    }
+
+    void removeTaskbarButton(View win) {
+        for (int i = 0; i < taskbarApps.getChildCount(); i++) {
+            View c = taskbarApps.getChildAt(i);
+            if (c.getTag() == win) {
+                taskbarApps.removeViewAt(i);
+                return;
+            }
+        }
+    }
+
+    View buildThisPC() {
+        LinearLayout v = basePanel();
+        TextView h = label("This PC", 18, TEXT);
+        h.setTypeface(Typeface.DEFAULT_BOLD);
+        v.addView(h, new LinearLayout.LayoutParams(MATCH, dp(48)));
+
+        String[] drives = {"📱  Internal storage", "💾  Downloads", "📷  DCIM", "📄  Documents"};
+        for (String d : drives) {
+            Button b = flatButton(d);
+            b.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+            b.setBackgroundColor(PANEL_2);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(MATCH, dp(54));
+            p.setMargins(0, dp(3), 0, dp(3));
+            v.addView(b, p);
+        }
+        return v;
+    }
+
+    View buildTerminal() {
+        LinearLayout v = new LinearLayout(this);
+        v.setOrientation(LinearLayout.VERTICAL);
+        v.setBackgroundColor(Color.BLACK);
+        v.setPadding(dp(7), dp(7), dp(7), dp(7));
+
+        final TextView out = label("Microsoft-style command shell\nType 'help' for commands.\n\n", 11, Color.rgb(100, 255, 100));
+        out.setTypeface(Typeface.MONOSPACE);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(out);
+        v.addView(scroll, new LinearLayout.LayoutParams(MATCH, 0, 1));
+
+        final EditText input = new EditText(this);
+        input.setTextColor(Color.rgb(100, 255, 100));
+        input.setHintTextColor(Color.rgb(40, 120, 40));
+        input.setHint("command...");
+        input.setSingleLine(true);
+        input.setTypeface(Typeface.MONOSPACE);
+        input.setTextSize(12);
+        input.setBackgroundColor(Color.rgb(8, 20, 8));
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        v.addView(input, new LinearLayout.LayoutParams(MATCH, dp(44)));
+
+        input.setOnEditorActionListener((tv, action, event) -> {
+            String cmd = input.getText().toString().trim();
+            input.setText("");
+            out.append("\n> " + cmd + "\n" + runShell(cmd) + "\n");
+            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
+            return true;
+        });
+        return v;
     }
 
     String runShell(String cmd) {
         if (cmd.isEmpty()) return "";
-        if (cmd.equals("help")) return "Commands:\n  ls       - list files\n  pwd      - current dir\n  date     - date\n  whoami   - user\n  uname    - kernel\n  ps       - processes\n  df       - disk\n  cat X    - print file\n  clear    - clear\n  echo X   - print X";
-        if (cmd.equals("clear")) return "\n\n\n\n\n\n\n\n\n\n";
+        if ("help".equals(cmd))
+            return "help  cls  date  whoami  uname  pwd  ls  ps  df  echo TEXT";
+        if ("cls".equals(cmd) || "clear".equals(cmd))
+            return "\n\n\n\n\n\n\n";
         try {
             Process p = Runtime.getRuntime().exec(new String[]{"sh", "-c", cmd});
-            BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream()));
             StringBuilder sb = new StringBuilder();
             String line;
-            while ((line = r.readLine()) != null) sb.append(line).append("\n");
-            BufferedReader er = new BufferedReader(new InputStreamReader(p.getErrorStream()));
-            while ((line = er.readLine()) != null) sb.append("[err] ").append(line).append("\n");
+            while ((line = in.readLine()) != null) sb.append(line).append('\n');
+            while ((line = err.readLine()) != null) sb.append(line).append('\n');
             p.waitFor();
-            return sb.toString();
+            return sb.length() == 0 ? "(no output)" : sb.toString();
         } catch (Exception e) {
             return "error: " + e.getMessage();
         }
     }
 
-    // ═══════════ NOTEPAD ═══════════
-    void showNotepad() {
-        content.removeAllViews();
-
-        LinearLayout v = new LinearLayout(this);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setBackgroundColor(BG_MAIN);
-
-        v.addView(makeHeader("Notepad"));
-
-        LinearLayout menu = new LinearLayout(this);
-        menu.setOrientation(LinearLayout.HORIZONTAL);
-        menu.setBackgroundColor(BG_MENU);
-        menu.setPadding(dp(6), dp(6), dp(6), dp(6));
-
-        Button save = new Button(this);
-        save.setText("💾 SAVE");
-        save.setTextColor(TEXT_MAIN);
-        save.setTextSize(12);
-        save.setBackgroundColor(ACCENT);
-        menu.addView(save, new LinearLayout.LayoutParams(0, WRAP, 1));
-
-        Button clr = new Button(this);
-        clr.setText("🗑 CLEAR");
-        clr.setTextColor(TEXT_MAIN);
-        clr.setTextSize(12);
-        clr.setBackgroundColor(RED);
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, WRAP, 1);
-        cp.leftMargin = dp(6);
-        menu.addView(clr, cp);
-
-        v.addView(menu);
-
-        final EditText et = new EditText(this);
-        et.setText(prefs.getString("notes", ""));
-        et.setTextColor(TEXT_MAIN);
-        et.setHintTextColor(TEXT_MUTED);
-        et.setHint("Start typing...");
-        et.setBackgroundColor(BG_INPUT);
-        et.setGravity(Gravity.TOP | Gravity.LEFT);
-        et.setPadding(dp(12), dp(12), dp(12), dp(12));
-        et.setTextSize(14);
-        et.setTypeface(Typeface.MONOSPACE);
-        v.addView(et, new LinearLayout.LayoutParams(MATCH, 0, 1));
-
-        save.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View x) {
-                prefs.edit().putString("notes", et.getText().toString()).apply();
-                toast("Saved!");
-            }
-        });
-        clr.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View x) { et.setText(""); }
-        });
-
-        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
-    }
-
-    // ═══════════ BROWSER ═══════════
-    void showBrowser() {
-        content.removeAllViews();
-
-        LinearLayout v = new LinearLayout(this);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setBackgroundColor(BG_MAIN);
-
-        v.addView(makeHeader("Browser"));
-
+    View buildBrowser() {
+        LinearLayout v = basePanel();
         LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setBackgroundColor(BG_MENU);
-        bar.setPadding(dp(6), dp(6), dp(6), dp(6));
+        bar.setPadding(dp(5), dp(5), dp(5), dp(5));
+        bar.setBackgroundColor(TITLE);
 
         final EditText url = new EditText(this);
         url.setText("https://www.google.com");
-        url.setTextColor(TEXT_MAIN);
-        url.setBackgroundColor(BG_INPUT);
-        url.setTextSize(12);
+        url.setTextColor(TEXT);
         url.setSingleLine(true);
-        url.setPadding(dp(10), dp(8), dp(10), dp(8));
-        bar.addView(url, new LinearLayout.LayoutParams(0, WRAP, 1));
+        url.setTextSize(12);
+        url.setBackgroundColor(Color.rgb(24, 24, 27));
+        bar.addView(url, new LinearLayout.LayoutParams(0, dp(42), 1));
 
-        Button go = new Button(this);
-        go.setText("GO");
+        Button go = flatButton("Go");
         go.setBackgroundColor(ACCENT);
-        go.setTextColor(TEXT_MAIN);
-        bar.addView(go, new LinearLayout.LayoutParams(dp(60), WRAP));
-
+        bar.addView(go, new LinearLayout.LayoutParams(dp(60), dp(42)));
         v.addView(bar);
 
         final WebView web = new WebView(this);
-        web.getSettings().setJavaScriptEnabled(true);
+        WebSettings s = web.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
         web.setWebViewClient(new WebViewClient());
         web.loadUrl("https://www.google.com");
         v.addView(web, new LinearLayout.LayoutParams(MATCH, 0, 1));
 
-        go.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View x) {
-                String u = url.getText().toString().trim();
-                if (!u.startsWith("http")) u = "https://" + u;
-                web.loadUrl(u);
-            }
+        go.setOnClickListener(x -> {
+            String u = url.getText().toString().trim();
+            if (!u.startsWith("http://") && !u.startsWith("https://"))
+                u = "https://" + u;
+            web.loadUrl(u);
         });
-
-        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+        return v;
     }
 
-    // ═══════════ FILES ═══════════
-    void showFiles() {
-        content.removeAllViews();
-
-        LinearLayout v = new LinearLayout(this);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setBackgroundColor(BG_MAIN);
-
-        v.addView(makeHeader("File Manager — /sdcard"));
+    View buildFiles() {
+        LinearLayout v = basePanel();
+        TextView path = label("📁  /sdcard", 12, TEXT);
+        path.setBackgroundColor(TITLE);
+        path.setPadding(dp(10), 0, dp(10), 0);
+        v.addView(path, new LinearLayout.LayoutParams(MATCH, dp(42)));
 
         ScrollView sv = new ScrollView(this);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(8), dp(8), dp(8), dp(8));
+        list.setPadding(dp(5), dp(5), dp(5), dp(5));
 
         java.io.File dir = new java.io.File("/sdcard");
         java.io.File[] files = dir.listFiles();
-
-        if (files == null || files.length == 0) {
-            TextView t = new TextView(this);
-            t.setText("Storage permission chahiye.\n\nSettings > Apps > PC Mode > Permissions > Files -> Allow");
-            t.setTextColor(TEXT_MAIN);
-            t.setTextSize(12);
+        if (files == null) {
+            TextView t = label("Android storage access is restricted on newer Android versions.\nUse the system file picker where required.", 12, MUTED);
             t.setPadding(dp(12), dp(12), dp(12), dp(12));
             list.addView(t);
         } else {
             for (java.io.File f : files) {
                 if (f.getName().startsWith(".")) continue;
-                TextView tv = new TextView(this);
-                String icon = f.isDirectory() ? "📁  " : "📄  ";
-                tv.setText(icon + f.getName() + "\n" + (f.length()/1024) + " KB");
-                tv.setTextColor(TEXT_MAIN);
-                tv.setTextSize(12);
-                tv.setBackgroundColor(0xFF2A2A2A);
-                tv.setPadding(dp(12), dp(10), dp(12), dp(10));
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(MATCH, WRAP);
-                lp.setMargins(0, dp(3), 0, dp(3));
-                tv.setLayoutParams(lp);
-                list.addView(tv);
+                Button b = flatButton((f.isDirectory() ? "📁  " : "📄  ") + f.getName());
+                b.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                b.setBackgroundColor(PANEL_2);
+                list.addView(b, new LinearLayout.LayoutParams(MATCH, dp(42)));
             }
         }
-
         sv.addView(list);
         v.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1));
-
-        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+        return v;
     }
 
-    // ═══════════ CALCULATOR (FIXED) ═══════════
-    void showCalculator() {
-        content.removeAllViews();
+    View buildNotepad() {
+        LinearLayout v = basePanel();
+        LinearLayout bar = new LinearLayout(this);
 
+        Button save = flatButton("Save");
+        save.setBackgroundColor(ACCENT);
+        Button clear = flatButton("Clear");
+        clear.setBackgroundColor(CLOSE);
+        bar.addView(save, new LinearLayout.LayoutParams(0, dp(42), 1));
+        bar.addView(clear, new LinearLayout.LayoutParams(0, dp(42), 1));
+        v.addView(bar);
+
+        final EditText editor = new EditText(this);
+        editor.setText(prefs.getString("notes", ""));
+        editor.setHint("Type here...");
+        editor.setTextColor(TEXT);
+        editor.setHintTextColor(MUTED);
+        editor.setGravity(Gravity.TOP | Gravity.LEFT);
+        editor.setBackgroundColor(Color.rgb(24, 24, 27));
+        editor.setPadding(dp(10), dp(10), dp(10), dp(10));
+        editor.setTextSize(13);
+        v.addView(editor, new LinearLayout.LayoutParams(MATCH, 0, 1));
+
+        save.setOnClickListener(x -> {
+            prefs.edit().putString("notes", editor.getText().toString()).apply();
+            toast("Saved");
+        });
+        clear.setOnClickListener(x -> editor.setText(""));
+        return v;
+    }
+
+    View buildCalculator() {
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.VERTICAL);
-        v.setBackgroundColor(0xFF000000);
+        v.setBackgroundColor(Color.BLACK);
 
-        v.addView(makeHeader("Calculator"));
-
-        final TextView display = new TextView(this);
-        display.setText("0");
-        display.setTextColor(TEXT_MAIN);
-        display.setTextSize(30);
-        display.setBackgroundColor(0xFF000000);
+        final TextView display = label("0", 28, TEXT);
         display.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        display.setPadding(dp(16), dp(12), dp(16), dp(12));
-        v.addView(display, new LinearLayout.LayoutParams(MATCH, dp(80)));
-
-        final double[] prev = {0};
-        final char[] op = {0};
-        final boolean[] hasPrev = {false};
-        final boolean[] newNum = {true};
+        display.setPadding(dp(12), 0, dp(12), 0);
+        v.addView(display, new LinearLayout.LayoutParams(MATCH, dp(70)));
 
         String[][] keys = {
-            {"C", "÷", "×", "⌫"},
-            {"7", "8", "9", "-"},
-            {"4", "5", "6", "+"},
-            {"1", "2", "3", "="},
-            {"0", ".", "", ""}
+                {"C", "⌫", "÷", "×"},
+                {"7", "8", "9", "-"},
+                {"4", "5", "6", "+"},
+                {"1", "2", "3", "="},
+                {"0", ".", "", ""}
         };
 
-        for (String[] rowK : keys) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(MATCH, 0, 1);
-            rlp.setMargins(dp(3), dp(3), dp(3), dp(3));
-            row.setLayoutParams(rlp);
+        final double[] left = {0};
+        final char[] op = {0};
+        final boolean[] fresh = {true};
 
-            for (final String k : rowK) {
-                if (k.isEmpty()) {
-                    View sp = new View(this);
-                    row.addView(sp, new LinearLayout.LayoutParams(0, MATCH, 1));
+        for (String[] rowKeys : keys) {
+            LinearLayout row = new LinearLayout(this);
+            for (String key : rowKeys) {
+                if (key.isEmpty()) {
+                    row.addView(new View(this), new LinearLayout.LayoutParams(0, MATCH, 1));
                     continue;
                 }
-                Button b = new Button(this);
-                b.setText(k);
-                b.setTextColor(TEXT_MAIN);
-                b.setTextSize(18);
-                b.setPadding(0, 0, 0, 0);
-                if (k.equals("=")) b.setBackgroundColor(ACCENT);
-                else if (k.equals("C")) b.setBackgroundColor(RED);
-                else if ("÷×-+".contains(k)) b.setBackgroundColor(0xFF3D3D3D);
-                else b.setBackgroundColor(0xFF2A2A2A);
+                Button b = flatButton(key);
+                b.setTextSize(17);
+                b.setBackgroundColor(key.equals("=") ? ACCENT : PANEL_2);
+                row.addView(b, new LinearLayout.LayoutParams(0, MATCH, 1));
 
-                b.setOnClickListener(new View.OnClickListener() {
-                    public void onClick(View x) {
-                        try {
-                            String cur = display.getText().toString();
-
-                            if (k.equals("C")) {
-                                display.setText("0");
-                                prev[0] = 0; op[0] = 0; hasPrev[0] = false; newNum[0] = true;
-                                return;
-                            }
-            if (k.equals("⌫")) {
-                                if (cur.length() > 1) display.setText(cur.substring(0, cur.length() - 1));
-                                else display.setText("0");
-                                return;
-                            }
-                            if (k.equals("=")) {
-                                if (!hasPrev[0]) return;
-                                double c = Double.parseDouble(display.getText().toString());
-                                double r = 0;
-                                if (op[0] == '+') r = prev[0] + c;
-                                else if (op[0] == '-') r = prev[0] - c;
-                                else if (op[0] == '*') r = prev[0] * c;
-                                else if (op[0] == '/') r = (c == 0) ? 0 : prev[0] / c;
-                                String s = String.valueOf(Math.round(r * 1000000.0) / 1000000.0);
-                                if (s.endsWith(".0")) s = s.substring(0, s.length() - 2);
-                                display.setText(s);
-                                hasPrev[0] = false; newNum[0] = true;
-                                return;
-                            }
-                            if ("÷×-+".contains(k)) {
-                                prev[0] = Double.parseDouble(display.getText().toString());
-                                if (k.equals("÷")) op[0] = '/';
-                                else if (k.equals("×")) op[0] = '*';
-                                else op[0] = k.charAt(0);
-                                hasPrev[0] = true; newNum[0] = true;
-                                return;
-                            }
-                            if (k.equals(".")) {
-                                if (!display.getText().toString().contains("."))
-                                    display.setText(display.getText().toString() + ".");
-                                return;
-                            }
-                            if (newNum[0]) { display.setText(k); newNum[0] = false; }
-                            else if (display.getText().toString().equals("0")) display.setText(k);
-                            else display.setText(display.getText().toString() + k);
-                        } catch (Exception ex) {
-                            display.setText("0");
-                            prev[0] = 0; op[0] = 0; hasPrev[0] = false; newNum[0] = true;
+                b.setOnClickListener(x -> {
+                    String cur = display.getText().toString();
+                    try {
+                        if ("C".equals(key)) {
+                            display.setText("0"); left[0] = 0; op[0] = 0; fresh[0] = true; return;
                         }
+                        if ("⌫".equals(key)) {
+                            display.setText(cur.length() > 1 ? cur.substring(0, cur.length()-1) : "0");
+                            return;
+                        }
+                        if ("÷×-+".contains(key)) {
+                            left[0] = Double.parseDouble(cur);
+                            op[0] = key.equals("÷") ? '/' : key.equals("×") ? '*' : key.charAt(0);
+                            fresh[0] = true; return;
+                        }
+                        if ("=".equals(key)) {
+                            double r = Double.parseDouble(cur);
+                            if (op[0] == '+') r = left[0] + r;
+                            else if (op[0] == '-') r = left[0] - r;
+                            else if (op[0] == '*') r = left[0] * r;
+                            else if (op[0] == '/') r = r == 0 ? 0 : left[0] / r;
+                            display.setText(formatNumber(r));
+                            fresh[0] = true; return;
+                        }
+                        if (".".equals(key)) {
+                            if (!cur.contains(".")) display.setText(cur + ".");
+                            return;
+                        }
+                        if (fresh[0] || "0".equals(cur)) display.setText(key);
+                        else display.setText(cur + key);
+                        fresh[0] = false;
+                    } catch (Exception e) {
+                        display.setText("0"); fresh[0] = true;
                     }
                 });
-
-                row.addView(b, new LinearLayout.LayoutParams(0, MATCH, 1));
             }
-            v.addView(row);
+            v.addView(row, new LinearLayout.LayoutParams(MATCH, 0, 1));
         }
-
-        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+        return v;
     }
 
-    // ═══════════ SETTINGS ═══════════
-    void showSettings() {
-        content.removeAllViews();
+    String formatNumber(double n) {
+        String s = String.valueOf(Math.round(n * 1000000d) / 1000000d);
+        return s.endsWith(".0") ? s.substring(0, s.length() - 2) : s;
+    }
 
-        LinearLayout v = new LinearLayout(this);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setBackgroundColor(BG_MAIN);
+    View buildSettings() {
+        LinearLayout v = basePanel();
+        TextView info = label(
+                "PC Mode settings\n\nAndroid: " + Build.VERSION.RELEASE +
+                "\nDevice: " + Build.MODEL +
+                "\n\nThis app is a Windows-style desktop shell running on Android.",
+                13, TEXT);
+        info.setPadding(dp(10), dp(10), dp(10), dp(10));
+        v.addView(info, new LinearLayout.LayoutParams(MATCH, 0, 1));
 
-        v.addView(makeHeader("Settings"));
-
-        ScrollView sv = new ScrollView(this);
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(12), dp(12), dp(12), dp(12));
-
-        TextView info = new TextView(this);
-        info.setText("PC Mode v1.0\nAndroid " + Build.VERSION.RELEASE +
-                     "\nDevice: " + Build.MODEL +
-                     "\n\nAll permissions:\n- Storage: /sdcard access\n- Internet: browser\n- Terminal: shell commands");
-        info.setTextColor(TEXT_MAIN);
-        info.setTextSize(13);
-        list.addView(info);
-
-        Button perm = new Button(this);
-        perm.setText("OPEN APP PERMISSIONS");
-        perm.setBackgroundColor(ACCENT);
-        perm.setTextColor(TEXT_MAIN);
-        perm.setPadding(dp(10), dp(12), dp(10), dp(12));
-        perm.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View x) {
-                Intent i = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                i.setData(Uri.parse("package:" + getPackageName()));
-                startActivity(i);
-            }
+        Button permissions = flatButton("Open app permissions");
+        permissions.setBackgroundColor(ACCENT);
+        permissions.setOnClickListener(x -> {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            i.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(i);
         });
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(MATCH, WRAP);
-        lp.topMargin = dp(15);
-        list.addView(perm, lp);
-
-        sv.addView(list);
-        v.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1));
-
-        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+        v.addView(permissions, new LinearLayout.LayoutParams(MATCH, dp(48)));
+        return v;
     }
 
-    // ═══════════ ABOUT ═══════════
-    void showAbout() {
-        content.removeAllViews();
+    View buildAbout() {
+        LinearLayout v = basePanel();
+        v.setGravity(Gravity.CENTER);
+        TextView logo = label("⊞", 58, ACCENT);
+        logo.setGravity(Gravity.CENTER);
+        v.addView(logo, new LinearLayout.LayoutParams(MATCH, dp(80)));
 
+        TextView t = label("WinPCMode", 22, TEXT);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setGravity(Gravity.CENTER);
+        v.addView(t, new LinearLayout.LayoutParams(MATCH, dp(45)));
+
+        TextView sub = label(
+                "Windows-style desktop environment for Android\n\n" +
+                "Desktop • Start • Taskbar • Windows • Browser\n" +
+                "Files • Terminal • Notepad • Calculator • Settings",
+                11, MUTED);
+        sub.setGravity(Gravity.CENTER);
+        v.addView(sub, new LinearLayout.LayoutParams(MATCH, dp(120)));
+        return v;
+    }
+
+    LinearLayout basePanel() {
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.VERTICAL);
-        v.setBackgroundColor(BG_MAIN);
+        v.setPadding(dp(8), dp(8), dp(8), dp(8));
+        v.setBackgroundColor(PANEL);
+        return v;
+    }
 
-        v.addView(makeHeader("About"));
-
-        ScrollView sv = new ScrollView(this);
-        LinearLayout inner = new LinearLayout(this);
-        inner.setOrientation(LinearLayout.VERTICAL);
-        inner.setPadding(dp(20), dp(30), dp(20), dp(20));
-        inner.setGravity(Gravity.CENTER);
-
-        TextView logo = new TextView(this);
-        logo.setText("⊞");
-        logo.setTextColor(ACCENT);
-        logo.setTextSize(60);
-        logo.setGravity(Gravity.CENTER);
-        inner.addView(logo);
-
-        TextView t1 = new TextView(this);
-        t1.setText("PC Mode");
-        t1.setTextColor(TEXT_MAIN);
-        t1.setTextSize(22);
-        t1.setGravity(Gravity.CENTER);
-        t1.setPadding(0, dp(10), 0, 0);
-        inner.addView(t1);
-
-        TextView t2 = new TextView(this);
-        t2.setText("Version 1.0\n\nA desktop-style environment for Android.\n\nTerminal • Browser • Files • Notepad • Calculator");
-        t2.setTextColor(TEXT_MUTED);
-        t2.setTextSize(12);
-        t2.setGravity(Gravity.CENTER);
-        t2.setPadding(0, dp(15), 0, 0);
-        inner.addView(t2);
-
-        sv.addView(inner);
-        v.addView(sv, new LinearLayout.LayoutParams(MATCH, 0, 1));
-
-        content.addView(v, new FrameLayout.LayoutParams(MATCH, MATCH));
+    void toast(String text) {
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
     }
 
     @Override
     public void onBackPressed() {
-        if (startOpen) { hideStart(); return; }
-        showDesktop();
+        if (startOpen) {
+            hideStart();
+            return;
+        }
+        if (!windows.isEmpty()) {
+            View w = windows.get(windows.size() - 1);
+            desktop.removeView(w);
+            windows.remove(w);
+            removeTaskbarButton(w);
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 }
