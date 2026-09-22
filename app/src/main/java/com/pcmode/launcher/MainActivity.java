@@ -323,7 +323,7 @@ public class MainActivity extends Activity {
             return false;
         });
 
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(430), dp(500));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(430), dp(400));
         lp.gravity = Gravity.BOTTOM | Gravity.LEFT;
         lp.leftMargin = dp(8);
         lp.bottomMargin = dp(60);
@@ -343,7 +343,7 @@ public class MainActivity extends Activity {
         } else if ("Notepad".equals(name)) {
             createWindow(name, buildNotepad(), dp(560), dp(430));
         } else if ("Calculator".equals(name)) {
-            createWindow(name, buildCalculator(), dp(360), dp(470));
+            createWindow(name, buildCalculator(), dp(340), dp(390));
         } else if ("Settings".equals(name)) {
             createWindow(name, buildSettings(), dp(520), dp(430));
         } else if ("About".equals(name)) {
@@ -661,7 +661,7 @@ public class MainActivity extends Activity {
         final TextView display = label("0", 28, TEXT);
         display.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         display.setPadding(dp(12), 0, dp(12), 0);
-        v.addView(display, new LinearLayout.LayoutParams(MATCH, dp(70)));
+        v.addView(display, new LinearLayout.LayoutParams(MATCH, dp(52)));
 
         String[][] keys = {
                 {"C", "⌫", "÷", "×"},
