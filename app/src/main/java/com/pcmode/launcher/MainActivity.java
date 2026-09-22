@@ -515,6 +515,7 @@ public class MainActivity extends Activity {
 
         addTaskbarButton(title, win);
         win.bringToFront();
+    }
 
         View makeResizeHandle(final View win, final FrameLayout.LayoutParams lp, final int corner) {
         View handle = new View(this);
