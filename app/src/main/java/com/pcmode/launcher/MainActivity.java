@@ -957,4 +957,4 @@ View makeResizeHandle(final View win, final FrameLayout.LayoutParams lp, final i
         handler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }}
-}
+
