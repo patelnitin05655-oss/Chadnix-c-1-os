@@ -455,8 +455,121 @@ public class MainActivity extends Activity {
             }
         });
 
+        final boolean[] dragMode = {false};
+        final float[] dragOffsetX = {0};
+        final float[] dragOffsetY = {0};
+
+        win.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override public boolean onLongClick(View v) {
+                dragMode[0] = true;
+                toast("Drag mode ON - move finger");
+                return true;
+            }
+        });
+
+        win.setOnTouchListener(new View.OnTouchListener() {
+            @Override public boolean onTouch(View v, MotionEvent e) {
+                if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    dragOffsetX[0] = e.getRawX() - lp.leftMargin;
+                    dragOffsetY[0] = e.getRawY() - lp.topMargin;
+                }
+                if (dragMode[0]) {
+                    if (e.getActionMasked() == MotionEvent.ACTION_MOVE) {
+                        int nx = (int)(e.getRawX() - dragOffsetX[0]);
+                        int ny = (int)(e.getRawY() - dragOffsetY[0]);
+                        nx = Math.max(0, nx);
+                        ny = Math.max(0, ny);
+                        int maxX = desktop.getWidth() - win.getWidth();
+                        int maxY = desktop.getHeight() - dp(54) - win.getHeight();
+                        if (maxX > 0) nx = Math.min(nx, maxX);
+                        if (maxY > 0) ny = Math.min(ny, maxY);
+                        lp.leftMargin = nx;
+                        lp.topMargin = ny;
+                        win.setLayoutParams(lp);
+                        return true;
+                    }
+                    if (e.getActionMasked() == MotionEvent.ACTION_UP) {
+                        dragMode[0] = false;
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+
+        final View[] resizeHandle = new View[4];
+        resizeHandle[0] = makeResizeHandle(win, lp, 0);
+        resizeHandle[1] = makeResizeHandle(win, lp, 1);
+        resizeHandle[2] = makeResizeHandle(win, lp, 2);
+        resizeHandle[3] = makeResizeHandle(win, lp, 3);
+        for (int ri = 0; ri < 4; ri++) {
+            FrameLayout.LayoutParams hp = new FrameLayout.LayoutParams(dp(24), dp(24));
+            switch (ri) {
+                case 0: hp.gravity = Gravity.TOP | Gravity.LEFT; break;
+                case 1: hp.gravity = Gravity.TOP | Gravity.RIGHT; break;
+                case 2: hp.gravity = Gravity.BOTTOM | Gravity.LEFT; break;
+                case 3: hp.gravity = Gravity.BOTTOM | Gravity.RIGHT; break;
+            }
+            win.addView(resizeHandle[ri], hp);
+        }
+
         addTaskbarButton(title, win);
         win.bringToFront();
+
+        View makeResizeHandle(final View win, final FrameLayout.LayoutParams lp, final int corner) {
+        View handle = new View(this);
+        handle.setBackgroundColor(0x880078D4);
+        final float[] startX = {0};
+        final float[] startY = {0};
+        final int[] startW = {0};
+        final int[] startH = {0};
+        final int[] startL = {0};
+        final int[] startT = {0};
+
+        handle.setOnTouchListener(new View.OnTouchListener() {
+            @Override public boolean onTouch(View v, MotionEvent e) {
+                switch (e.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        startX[0] = e.getRawX();
+                        startY[0] = e.getRawY();
+                        startW[0] = win.getWidth();
+                        startH[0] = win.getHeight();
+                        startL[0] = lp.leftMargin;
+                        startT[0] = lp.topMargin;
+                        win.bringToFront();
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        int dx = (int)(e.getRawX() - startX[0]);
+                        int dy = (int)(e.getRawY() - startY[0]);
+                        int minW = dp(200);
+                        int minH = dp(150);
+                        if (corner == 0) {
+                            int nw = Math.max(minW, startW[0] - dx);
+                            int nh = Math.max(minH, startH[0] - dy);
+                            lp.width = nw;
+                            lp.height = nh;
+                            lp.leftMargin = startL[0] + (startW[0] - nw);
+                            lp.topMargin = startT[0] + (startH[0] - nh);
+                        } else if (corner == 1) {
+                            lp.width = Math.max(minW, startW[0] + dx);
+                            lp.height = Math.max(minH, startH[0] - dy);
+                            lp.topMargin = startT[0] + (startH[0] - lp.height);
+                        } else if (corner == 2) {
+                            int nw = Math.max(minW, startW[0] - dx);
+                            lp.width = nw;
+                            lp.height = Math.max(minH, startH[0] + dy);
+                            lp.leftMargin = startL[0] + (startW[0] - nw);
+                        } else {
+                            lp.width = Math.max(minW, startW[0] + dx);
+                            lp.height = Math.max(minH, startH[0] + dy);
+                        }
+                        win.setLayoutParams(lp);
+                        return true;
+                }
+                return false;
+            }
+        });
+        return handle;
     }
 
     void addTaskbarButton(String title, View win) {
