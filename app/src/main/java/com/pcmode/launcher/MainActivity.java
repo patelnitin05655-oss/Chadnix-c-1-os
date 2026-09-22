@@ -454,7 +454,60 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
-
+titleBar.setOnClickListener(null);
+final long[] lastTap = {0};
+titleBar.setOnTouchListener(new View.OnTouchListener() {
+    float downX, downY;
+    @Override public boolean onTouch(View v, MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            long now = System.currentTimeMillis();
+            if (now - lastTap[0] < 300) {
+                if (!maximized[0]) {
+                    old[0] = win.getWidth();
+                    old[1] = win.getHeight();
+                    lp.leftMargin = 0;
+                    lp.topMargin = 0;
+                    lp.width = MATCH;
+                    lp.height = MATCH;
+                    win.setLayoutParams(lp);
+                    max.setText("❐");
+                    maximized[0] = true;
+                } else {
+                    lp.width = old[0];
+                    lp.height = old[1];
+                    lp.leftMargin = dp(35);
+                    lp.topMargin = dp(25);
+                    win.setLayoutParams(lp);
+                    max.setText("□");
+                    maximized[0] = false;
+                }
+                toast(maximized[0] ? "Maximized" : "Restored");
+                return true;
+            }
+            lastTap[0] = now;
+            downX = e.getRawX() - lp.leftMargin;
+            downY = e.getRawY() - lp.topMargin;
+            win.bringToFront();
+            return true;
+        }
+        if (e.getActionMasked() == MotionEvent.ACTION_MOVE) {
+            if (maximized[0]) return true;
+            int x = (int)(e.getRawX() - downX);
+            int y = (int)(e.getRawY() - downY);
+            x = Math.max(0, x);
+            y = Math.max(0, y);
+            int maxX = desktop.getWidth() - win.getWidth();
+            int maxY = desktop.getHeight() - dp(54) - win.getHeight();
+            if (maxX > 0) x = Math.min(x, maxX);
+            if (maxY > 0) y = Math.min(y, maxY);
+            lp.leftMargin = x;
+            lp.topMargin = y;
+            win.setLayoutParams(lp);
+            return true;
+        }
+        return false;
+    }
+});
         final boolean[] dragMode = {false};
         final float[] dragOffsetX = {0};
         final float[] dragOffsetY = {0};
