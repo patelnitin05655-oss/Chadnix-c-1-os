@@ -483,9 +483,12 @@ void createWindow(final String title, View content, int width, int height) {
                     if (maxY > 0) y = Math.min(y, maxY);
                     lp.leftMargin = x;
                     lp.topMargin = y;
-                    win.setLayoutParams(lp);
-                    return true;
-            }
+                486:  win.setLayoutParams(lp);
+487:  return true;
+     case MotionEvent.ACTION_UP:                           ← NAYA
+         checkSnap(win, lp, old, maximized, max);          ← NAYA
+         return true;                                      ← NAYA
+488:  }
             return false;
         }
     });
@@ -525,6 +528,7 @@ void createWindow(final String title, View content, int width, int height) {
                 }
                 if (e.getActionMasked() == MotionEvent.ACTION_UP) {
                     dragMode[0] = false;
+                    checkSnap(win, lp, old, maximized, max);
                     return true;
                 }
             }
@@ -951,7 +955,40 @@ View makeResizeHandle(final View win, final FrameLayout.LayoutParams lp, final i
         }
         super.onBackPressed();
     }
+void checkSnap(final View win, final FrameLayout.LayoutParams lp,
+               final int[] old, final boolean[] maximized, final Button max) {
+    int screenW = desktop.getWidth();
+    int screenH = desktop.getHeight() - dp(54);
+    int threshold = dp(30);
 
+    if (lp.leftMargin < threshold) {
+        lp.leftMargin = 0;
+        lp.topMargin = 0;
+        lp.width = screenW / 2;
+        lp.height = screenH;
+        win.setLayoutParams(lp);
+        toast("Snapped Left");
+    } else if (lp.leftMargin + win.getWidth() > screenW - threshold) {
+        lp.leftMargin = screenW / 2;
+        lp.topMargin = 0;
+        lp.width = screenW / 2;
+        lp.height = screenH;
+        win.setLayoutParams(lp);
+        toast("Snapped Right");
+    } else if (lp.topMargin < threshold) {
+        old[0] = win.getWidth();
+        old[1] = win.getHeight();
+        lp.leftMargin = 0;
+        lp.topMargin = 0;
+        lp.width = MATCH;
+        lp.height = MATCH;
+        win.setLayoutParams(lp);
+        max.setText("❐");
+        maximized[0] = true;
+        toast("Maximized");
+    }
+}
+    
     @Override
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
